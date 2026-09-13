@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Surveillance logement — KBK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --black: #0A0A0A;
+    --panel: #141414;
+    --line: #262626;
+    --white: #FFFFFF;
+    --grey: #8A8A8A;
+    --orange: #FF6B00;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--black);
+    color: var(--white);
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .screen {
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .brand {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    color: var(--grey);
+    margin-bottom: 32px;
+  }
+
+  .brand span { color: var(--orange); }
+
+  .signal {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--grey);
+    flex-shrink: 0;
+  }
+
+  .dot.watching {
+    background: var(--orange);
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+
+  .dot.found {
+    background: var(--orange);
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0.45); }
+    50% { box-shadow: 0 0 0 8px rgba(255, 107, 0, 0); }
+  }
+
+  .state-label {
+    font-size: 13px;
+    color: var(--grey);
+  }
+
+  h1 {
+    font-family: 'Archivo Black', sans-serif;
+    font-weight: 400;
+    font-size: 30px;
+    line-height: 1.15;
+    margin: 12px 0 28px;
+    max-width: 22ch;
+  }
+
+  h1.found { color: var(--orange); }
+
+  .meta {
+    border-top: 1px solid var(--line);
+  }
+
+  .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+
+  .row .k { color: var(--grey); }
+  .row .v { text-align: right; word-break: break-word; }
+
+  .link {
+    color: var(--white);
+    text-decoration: underline;
+    text-decoration-color: var(--line);
+    text-underline-offset: 3px;
+  }
+
+  .error-note {
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--orange);
+  }
+</style>
+</head>
+<body>
+  <div class="screen">
+    <div class="brand">KBK<span>·</span>surveillance logement</div>
+
+    <div class="signal">
+      <div class="dot" id="dot"></div>
+      <div class="state-label" id="stateLabel">Chargement…</div>
+    </div>
+    <h1 id="headline">Vérification en cours</h1>
+
+    <div class="meta">
+      <div class="row">
+        <div class="k">Zone surveillée</div>
+        <div class="v" id="location">—</div>
+      </div>
+      <div class="row">
+        <div class="k">Dernière vérification</div>
+        <div class="v" id="lastCheck">—</div>
+      </div>
+      <div class="row">
+        <div class="k">Fréquence</div>
+        <div class="v" id="interval">—</div>
+      </div>
+      <div class="row">
+        <div class="k">Vérifications effectuées</div>
+        <div class="v" id="count">—</div>
+      </div>
+      <div class="row">
+        <div class="k">Lien surveillé</div>
+        <div class="v"><a class="link" id="targetLink" href="#" target="_blank" rel="noopener">Voir la page</a></div>
+      </div>
+    </div>
+
+    <div class="error-note" id="errorNote" style="display: none;"></div>
+  </div>
+
+  <script>
+    function formatDate(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleString('fr-FR');
+    }
+
+    function formatInterval(ms) {
+      if (!ms) return '—';
+      const seconds = Math.round(ms / 1000);
+      return `toutes les ${seconds} s`;
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+
+        const dot = document.getElementById('dot');
+        const stateLabel = document.getElementById('stateLabel');
+        const headline = document.getElementById('headline');
+        const errorNote = document.getElementById('errorNote');
+
+        document.getElementById('location').textContent = data.locationName;
+        document.getElementById('lastCheck').textContent = formatDate(data.lastCheck);
+        document.getElementById('interval').textContent = formatInterval(data.checkIntervalMs);
+        document.getElementById('count').textContent = data.checksCount;
+        const linkEl = document.getElementById('targetLink');
+        linkEl.href = data.targetUrl;
+
+        dot.className = 'dot';
+        errorNote.style.display = 'none';
+        headline.className = '';
+
+        if (data.lastStatus === 'libre') {
+          dot.classList.add('found');
+          stateLabel.textContent = 'Logement détecté';
+          headline.textContent = 'Un logement est disponible';
+          headline.classList.add('found');
+        } else if (data.lastStatus === 'aucun_logement') {
+          dot.classList.add('watching');
+          stateLabel.textContent = 'Surveillance active';
+          headline.textContent = 'Aucun logement pour le moment';
+        } else if (data.lastStatus === 'erreur') {
+          dot.classList.add('watching');
+          stateLabel.textContent = 'Surveillance active';
+          headline.textContent = 'Dernière vérification en erreur';
+          errorNote.style.display = 'block';
+          errorNote.textContent = data.lastError || 'Erreur inconnue';
+        } else {
+          stateLabel.textContent = 'En attente';
+          headline.textContent = 'Première vérification en cours';
+        }
+      } catch (e) {
+        document.getElementById('stateLabel').textContent = 'Connexion au serveur impossible';
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>
